@@ -11,17 +11,13 @@ from keras.utils.np_utils import to_categorical
 import os
 import numpy as np
 from keras.models import Sequential, Model
-from keras.layers import Input, Dropout, Flatten, Conv2D, MaxPooling2D, Dense, Activation, BatchNormalization
+from keras.layers import Input, Dropout, Flatten, Conv2D, MaxPooling2D, Dense, Activation, BatchNormalization, merge
 from keras.applications.vgg16 import VGG16
 from keras.optimizers import Adagrad
 from keras.optimizers import Adam
 from keras.optimizers import SGD
 from keras.layers import Activation, Dropout, Conv1D, Conv2D, Reshape, Lambda
 import sys
-from alex_rgb import alex_rgb
-from alex_d import alex_d
-
-
 
 ROWS = 224
 COLS = 224
@@ -29,7 +25,7 @@ CHANNELS = 3
 label_list = []
 image_list = []
 # クラスの個数を指定
-CLASSES = 3
+CLASSES = 9
 batch = 32
 epoch = 100
 
@@ -64,22 +60,40 @@ Y = to_categorical(d_label_list)
 input_img_rgb = Input(shape=(ROWS, COLS, CHANNELS), name="input_tensor_rgb")
 input_img_d = Input(shape=(ROWS, COLS, CHANNELS), name="input_tensor_d")
 
+#print(input_img_rgb)
+
+cnn1 = Sequential()
+cnn1 = Conv2D(96, 11, strides=(4, 4), input_shape=(ROWS, CLASSES, CHANNELS))(input_img_rgb)
+cnn1 = Conv2D(256, 5)(cnn1)
+cnn1 = Conv2D(384, 3)(cnn1)
+cnn1 = Conv2D(384, 3)(cnn1)
+cnn1 = Conv2D(256, 3)(cnn1)
+cnn1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(cnn1)
+cnn1 = Dense(4096)(cnn1)
+cnn1 = Dropout(0.5)(cnn1)
+cnn1 = Dense(4096)(cnn1)
 
 
-cnn1 = alex_rgb(input_img_rgb)
-cnn2 = alex_d(input_img_d)
+cnn2 = Sequential()
+cnn2 = Conv2D(96, 11, strides=(4, 4), input_shape=(ROWS, COLS, CHANNELS))(input_img_d)
+cnn2 = Conv2D(256, 5)(cnn2)
+cnn2 = Conv2D(384, 3)(cnn2)
+cnn2 = Conv2D(384, 3)(cnn2)
+cnn2 = Conv2D(256, 3)(cnn2)
+cnn2 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(cnn2)
+cnn2 = Dense(4096)(cnn2)
+cnn2 = Dropout(0.5)(cnn2)
+cnn2 = Dense(4096, activation='relu', name='relu_g')(cnn2)
 
-# leave only maximum features to eliminate null inputs
 network = Concatenate()([cnn1, cnn2])
 network = Dense(4096, activation='relu', name="last_dense")(network)
+network = Flatten()(network)
 
 # classification layer
-network = Dropout(0.5)(network)
 network = Dense(CLASSES, activation='softmax', name='softmax')(network)
 
 model = Sequential()
 model = Model(inputs=[input_img_rgb, input_img_d], outputs=network)
-
 
 model.compile(optimizer=Adam(lr=1e-4, decay=1e-6),
               loss=categorical_crossentropy,
@@ -87,21 +101,13 @@ model.compile(optimizer=Adam(lr=1e-4, decay=1e-6),
 
 model.summary()  # モデルの表示
 
-
-# img_list = [bark_img_list, leaf_img_list, form_img_list]
-
-# numpy配列に変更
 rgb_img_list = np.array(rgb_img_list)
 d_img_list = np.array(d_img_list)
 
-#img_list = [bark_img_list, leaf_img_list, form_img_list]
-
-
+#print(len(rgb_img_list))
 
 # 学習を実行。10%はテストに使用。
-fit = model.fit(([rgb_img_list, d_img_list]), Y,
-                batch_size=batch, epochs=epoch, validation_split=0.1)
+fit = model.fit(([rgb_img_list, d_img_list]), Y, batch_size=batch, epochs=epoch, validation_split=0.1)
 
 model.save('./my_model_RGB_D_10.h5')
 model.save_weights('./my_model_weights_RGB_D_10.h5')
-
