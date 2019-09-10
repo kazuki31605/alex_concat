@@ -95,6 +95,13 @@ network = Dense(CLASSES, activation='softmax', name='softmax')(network)
 model = Sequential()
 model = Model(inputs=[input_img_rgb, input_img_d], outputs=network)
 
+##学習しない層の追加
+print("学習しない層を表示")
+
+for layer in model.layers[:9]:
+    print(layer)
+    layer.trainable = False
+
 model.compile(optimizer=Adam(lr=1e-4, decay=1e-6),
               loss=categorical_crossentropy,
               metrics=['accuracy'])
